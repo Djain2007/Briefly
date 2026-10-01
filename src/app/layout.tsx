@@ -17,6 +17,9 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { AudioProvider } from '@/lib/contexts/AudioContext';
 import { PersistentPlayer } from '@/components/audio/PersistentPlayer';
 
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,6 +34,8 @@ export default function RootLayout({
             <PersistentPlayer />
           </AudioProvider>
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
