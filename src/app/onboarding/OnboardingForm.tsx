@@ -28,13 +28,19 @@ const INTEREST_GROUPS = [
   }
 ];
 
-export default function OnboardingForm({ userId }: { userId: string }) {
+export default function OnboardingForm({ userId }: { userId?: string }) {
   const router = useRouter();
   const supabase = createClient();
   
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // 0 = Account, 1 = Welcome, 2 = Interests, etc.
+  
+  // Auth state
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [briefingLength, setBriefingLength] = useState<'quick' | 'standard' | 'deep'>('standard');
   const [audioSpeed, setAudioSpeed] = useState('1x');
   const [loading, setLoading] = useState(false);
@@ -47,52 +53,115 @@ export default function OnboardingForm({ userId }: { userId: string }) {
     );
   };
 
-  const handleComplete = async (generateNow: boolean) => {
-    if (selectedInterests.length < 3) return;
-    
+  const handleAccountSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !email || password.length < 6) {
+      setAuthError('Please fill all fields. Password must be at least 6 characters.');
+      return;
+    }
+    setAuthError('');
+    setStep(1);
+  };
+
+  const handleComplete = async () => {
     setLoading(true);
     
-    const { error } = await supabase
-      .from('user_preferences')
-      .upsert({
-        id: userId,
-        interests: selectedInterests,
-        briefing_length: briefingLength,
-        audio_speed: audioSpeed,
-        updated_at: new Date().toISOString()
-      });
+    // Save to local storage for post-confirmation sync
+    localStorage.setItem('briefly_pending_prefs', JSON.stringify({
+      interests: selectedInterests,
+      briefing_length: briefingLength,
+      audio_speed: audioSpeed
+    }));
+
+    // If userId is already present (e.g. user went to /onboarding while logged in without interests)
+    if (userId) {
+      const { error } = await supabase
+        .from('user_preferences')
+        .upsert({
+          id: userId,
+          interests: selectedInterests,
+          briefing_length: briefingLength,
+          audio_speed: audioSpeed,
+          updated_at: new Date().toISOString()
+        });
+      
+      setLoading(false);
+      if (!error) {
+        router.push('/app');
+        router.refresh();
+      } else {
+        alert(error.message);
+      }
+      return;
+    }
+
+    // Otherwise create the new account
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+      }
+    });
 
     setLoading(false);
 
-    if (!error) {
-      if (generateNow) {
-        // Just push to /app, let the user click generate or we can auto trigger later, but standard is to push.
-        // Wait, the prompt says "take them to the empty Today state" if they skip.
-        // If they click generate, we should maybe pass a query param ?generate=true
-        router.push(generateNow ? '/app?generate=true' : '/app');
-      } else {
-        router.push('/app');
-      }
-      router.refresh();
-    } else {
+    if (error) {
       console.error(error);
+      alert(error.message);
+      setStep(0); // Go back to fix email/password
+    } else {
+      setStep(6); // Success / Check Email step
     }
   };
 
-  const renderHeader = (currentStep: number) => (
+  const renderHeader = (currentStep: number, total: number = 4) => (
     <header className="px-6 md:px-12 py-8 flex justify-between items-center w-full max-w-[var(--max-content-width)] mx-auto mb-4 md:mb-12">
       <div className="font-bold tracking-tighter text-lg text-foreground">BRIEFLY</div>
       <div className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-        {String(currentStep).padStart(2, '0')} — 04
+        {String(currentStep).padStart(2, '0')} — {String(total).padStart(2, '0')}
       </div>
     </header>
   );
 
+  // Step 0: Registration (Account Info)
+  if (step === 0 && !userId) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fade-up opacity-0 fill-mode-forwards">
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-foreground">Create account</h1>
+        <p className="text-lg text-muted-foreground font-medium mb-8 max-w-md">Start building your personalized daily brief.</p>
+        
+        <form onSubmit={handleAccountSubmit} className="w-full max-w-md text-left space-y-6 bg-surface p-8 rounded-2xl border border-surface-border shadow-sm">
+          {authError && <div className="bg-error/10 text-error p-3 rounded-lg text-sm">{authError}</div>}
+          <div className="space-y-2">
+            <label className="text-sm font-medium block">Name</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full px-4 py-3 rounded-lg border border-border bg-background focus:ring-2 focus:ring-interactive trans-fast" placeholder="Jane Doe" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium block">Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full px-4 py-3 rounded-lg border border-border bg-background focus:ring-2 focus:ring-interactive trans-fast" placeholder="you@example.com" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium block">Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="w-full px-4 py-3 rounded-lg border border-border bg-background focus:ring-2 focus:ring-interactive trans-fast" placeholder="••••••••" />
+          </div>
+          <button type="submit" className="w-full bg-accent text-accent-foreground py-3 rounded-lg font-medium hover:bg-accent/90 trans-fast active:scale-[0.98]">
+            Continue
+          </button>
+        </form>
+      </div>
+    );
+  } else if (step === 0 && userId) {
+    // Skip if already logged in but missing preferences
+    setStep(2);
+  }
+
+  // Step 1: Welcome
   if (step === 1) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fade-up opacity-0 fill-mode-forwards">
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6 text-foreground">
-          Welcome to Briefly.
+          Welcome to Briefly, {name.split(' ')[0]}.
         </h1>
         <p className="text-xl md:text-2xl text-muted-foreground font-medium mb-12 max-w-lg leading-relaxed">
           Let's build a daily briefing around what matters to you.
@@ -107,6 +176,7 @@ export default function OnboardingForm({ userId }: { userId: string }) {
     );
   }
 
+  // Step 2: Interests
   if (step === 2) {
     return (
       <div className="flex-1 flex flex-col">
@@ -171,6 +241,7 @@ export default function OnboardingForm({ userId }: { userId: string }) {
     );
   }
 
+  // Step 3: Briefing Length
   if (step === 3) {
     return (
       <div className="flex-1 flex flex-col">
@@ -222,6 +293,7 @@ export default function OnboardingForm({ userId }: { userId: string }) {
     );
   }
 
+  // Step 4: Audio Speed
   if (step === 4) {
     return (
       <div className="flex-1 flex flex-col">
@@ -259,58 +331,79 @@ export default function OnboardingForm({ userId }: { userId: string }) {
     );
   }
 
-  return (
-    <div className="flex-1 flex flex-col">
-      {renderHeader(4)}
-      <div className="flex-1 layout-content animate-slide-right opacity-0 fill-mode-forwards pb-32">
-        <div className="mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">All Set.</h1>
-          <p className="text-lg text-muted-foreground font-medium">Review your choices before we begin.</p>
-        </div>
-        
-        <div className="space-y-12">
-          <section>
-            <h3 className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase mb-6 border-b border-border pb-2">Selected Interests</h3>
-            <div className="flex flex-wrap gap-3">
-              {selectedInterests.map(interest => (
-                <span key={interest} className="px-4 py-2 rounded-lg bg-surface border border-surface-border text-sm font-semibold text-foreground">
-                  {interest}
-                </span>
-              ))}
-            </div>
-          </section>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <section>
-              <h3 className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase mb-6 border-b border-border pb-2">Length</h3>
-              <p className="text-2xl font-bold capitalize text-foreground">{briefingLength}</p>
-            </section>
-            <section>
-              <h3 className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase mb-6 border-b border-border pb-2">Speed</h3>
-              <p className="text-2xl font-bold text-foreground">{audioSpeed}</p>
-            </section>
+  // Step 5: Review
+  if (step === 5) {
+    return (
+      <div className="flex-1 flex flex-col">
+        {renderHeader(4)}
+        <div className="flex-1 layout-content animate-slide-right opacity-0 fill-mode-forwards pb-32">
+          <div className="mb-16">
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">All Set.</h1>
+            <p className="text-lg text-muted-foreground font-medium">Review your choices before we begin.</p>
           </div>
-        </div>
+          
+          <div className="space-y-12">
+            <section>
+              <h3 className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase mb-6 border-b border-border pb-2">Selected Interests</h3>
+              <div className="flex flex-wrap gap-3">
+                {selectedInterests.map(interest => (
+                  <span key={interest} className="px-4 py-2 rounded-lg bg-surface border border-surface-border text-sm font-semibold text-foreground">
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            </section>
 
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-surface/90 backdrop-blur-md border-t border-border z-10">
-          <div className="max-w-[var(--max-content-width)] mx-auto flex flex-col sm:flex-row items-center justify-end gap-4">
-            <button
-              onClick={() => handleComplete(false)}
-              disabled={loading}
-              className="btn-ghost w-full sm:w-auto"
-            >
-              Skip generation
-            </button>
-            <button
-              onClick={() => handleComplete(true)}
-              disabled={loading}
-              className="btn-primary w-full sm:w-auto shadow-lg"
-            >
-              {loading ? 'Generating...' : 'Generate First Briefing'}
-            </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <section>
+                <h3 className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase mb-6 border-b border-border pb-2">Length</h3>
+                <p className="text-2xl font-bold capitalize text-foreground">{briefingLength}</p>
+              </section>
+              <section>
+                <h3 className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase mb-6 border-b border-border pb-2">Speed</h3>
+                <p className="text-2xl font-bold text-foreground">{audioSpeed}</p>
+              </section>
+            </div>
+
+            <div className="fixed bottom-0 left-0 right-0 p-6 bg-surface/90 backdrop-blur-md border-t border-border z-10">
+              <div className="max-w-[var(--max-content-width)] mx-auto flex flex-col sm:flex-row items-center justify-end gap-4">
+                <button
+                  onClick={() => setStep(4)}
+                  disabled={loading}
+                  className="btn-ghost w-full sm:w-auto"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleComplete}
+                  disabled={loading}
+                  className="btn-primary w-full sm:w-auto shadow-lg"
+                >
+                  {loading ? 'Creating Account...' : (userId ? 'Save Preferences' : 'Create Account')}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Step 6: Verify Email
+  if (step === 6) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fade-up opacity-0 fill-mode-forwards">
+        <div className="w-20 h-20 bg-interactive/10 text-interactive rounded-full flex items-center justify-center mb-8 mx-auto">
+          <Check size={40} />
+        </div>
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-foreground">Check your email</h1>
+        <p className="text-lg text-muted-foreground font-medium mb-12 max-w-md mx-auto leading-relaxed">
+          We've sent a verification link to <span className="text-foreground font-bold">{email}</span>. 
+          Please click the link to confirm your account and access your dashboard.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
 }

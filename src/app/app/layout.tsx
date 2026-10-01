@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import MobileHeader from '@/components/MobileHeader';
-
 import MobileNav from '@/components/MobileNav';
+import { SyncPreferences } from '@/components/SyncPreferences';
 
 export default async function AppLayout({
   children,
@@ -42,6 +42,7 @@ export default async function AppLayout({
 
       {/* Mobile Navigation Bottom Bar */}
       <MobileNav />
+      <SyncPreferences userId={user.id} />
     </div>
   );
 }
