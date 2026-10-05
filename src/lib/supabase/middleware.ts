@@ -39,12 +39,29 @@ export async function updateSession(request: NextRequest) {
 
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register') || request.nextUrl.pathname.startsWith('/onboarding')
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/app')
+  const isAdminRoute = request.nextUrl.pathname.startsWith('/admin')
 
   if (isProtectedRoute && !user) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  if (isAdminRoute) {
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+    
+    // Check for admin role in raw_user_meta_data
+    const role = user.user_metadata?.role;
+    if (role !== 'admin' && role !== 'super_admin') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/app' // Redirect unauthorized users to the main app
+      return NextResponse.redirect(url)
+    }
   }
 
   if (isAuthRoute && user) {

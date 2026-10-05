@@ -22,6 +22,7 @@ It combines a production-oriented web application with a modular FastAPI backend
 - [Audio Pipeline](#audio-pipeline)
 - [Database and Persistence](#database-and-persistence)
 - [Authentication and Security](#authentication-and-security)
+- [Admin Panel](#admin-panel)
 - [Caching and Performance](#caching-and-performance)
 - [Web Application](#web-application)
 - [Routes](#routes)
@@ -565,6 +566,22 @@ INTERNAL_API_SECRET
 ```
 
 Private credentials belong only on trusted backend/infrastructure environments.
+
+---
+
+# Admin Panel
+
+Briefly includes a production-grade Admin Panel located at `/admin`.
+This panel provides secure, server-side verified access to:
+- **System Monitoring**: Dashboard metrics for users, active sessions, audio generations, and more.
+- **User Management**: View, search, and manage all users.
+- **Access Control**: Super administrators can securely **ban**, **unban**, or **suspend** users from the platform.
+- **Audit Logs**: Immutable tracking of all administrative actions.
+- **System Errors**: Real-time error monitoring.
+
+Admin access is determined by the `role` attribute in the user's `raw_user_meta_data`. Valid roles are `admin` and `super_admin`.
+
+**For full setup, architecture, and deployment instructions regarding the Admin Panel, please refer to the dedicated [ADMIN.md](./ADMIN.md) file.**
 
 ---
 
