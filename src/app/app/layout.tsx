@@ -32,7 +32,7 @@ export default async function AppLayout({
 
       {/* Desktop Sidebar (Fixed & Non-scrolling) */}
       <div className="hidden md:flex flex-col w-[var(--sidebar-width)] shrink-0 border-r border-border h-full bg-surface z-40">
-        <Sidebar user={profile} />
+        <Sidebar user={profile} role={user.user_metadata?.role} />
       </div>
 
       {/* Main Content (Independently Scrollable) */}

@@ -19,7 +19,11 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
       if (res?.error) {
         setError(res.error);
       } else if (res?.success) {
-        router.push('/app');
+        if (res.role === 'admin' || res.role === 'super_admin') {
+          router.push('/admin');
+        } else {
+          router.push('/app');
+        }
         router.refresh();
       }
     });

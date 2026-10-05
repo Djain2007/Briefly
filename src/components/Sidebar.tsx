@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Compass, Library, History, Bookmark, PlaySquare, Settings, LogOut } from 'lucide-react';
+import { Home, Compass, Library, History, Bookmark, PlaySquare, Settings, LogOut, ShieldAlert } from 'lucide-react';
 import { logout } from '@/lib/actions/auth';
 import { UserProfile } from '@/types';
 
-export default function Sidebar({ user }: { user: UserProfile }) {
+export default function Sidebar({ user, role }: { user: UserProfile, role?: string }) {
   const pathname = usePathname();
 
   const mainLinks = [
@@ -81,6 +81,18 @@ export default function Sidebar({ user }: { user: UserProfile }) {
               Settings
             </span>
           </Link>
+          
+          {(role === 'admin' || role === 'super_admin') && (
+            <Link
+              href="/admin"
+              className="group flex items-center gap-4 px-3 py-2.5 rounded-lg trans-fast text-interactive hover:text-interactive hover:bg-interactive/10"
+            >
+              <ShieldAlert size={20} strokeWidth={2} />
+              <span className="text-sm tracking-wide font-semibold">
+                Admin Panel
+              </span>
+            </Link>
+          )}
         </nav>
         
         <div className="px-3 flex items-center justify-between">

@@ -27,7 +27,7 @@ export async function loginAction(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -36,8 +36,10 @@ export async function loginAction(formData: FormData) {
     return { error: error.message };
   }
 
+  const role = data.user?.user_metadata?.role;
+
   revalidatePath('/app');
-  return { success: true };
+  return { success: true, role };
 }
 
 export async function register(formData: FormData) {
